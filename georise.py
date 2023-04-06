@@ -96,20 +96,25 @@ class GRRasterScene:
         self.w.show()
 
     def add_geometry(self, hash):
-        data_tup = self.prov.data[hash]
+        skip = 4
+        elevs = self.prov.data[hash][1][::skip, ::skip]
         # arr = data_tup[1]
-        x_sz, y_sz = data_tup[1].shape
+        x_sz, y_sz = elevs.shape
 
         y = np.linspace(0, y_sz - 1, y_sz)
         x = np.linspace(0, x_sz - 1, x_sz)
-
+        print(elevs.shape)
 
         cmap = plt.get_cmap('twilight_shifted_r')
-        minZ=np.min(data_tup[1])
-        maxZ=np.max(data_tup[1])
-        img = cmap((data_tup[1]-minZ)/(maxZ -minZ))
+        minZ=np.min(elevs)
+        maxZ=np.max(elevs)
+        img = cmap((elevs-minZ)/(maxZ -minZ))
         
-        surf = gl.GLSurfacePlotItem(x=y, y=x, z=data_tup[1], colors = img, shader='shaded')
+        surf = gl.GLSurfacePlotItem(x=y, y=x, z=elevs, colors = img, shader='shaded')
+
+        scale: Tuple[float, float, float] = self.prov.data[hash][0].get_scale()
+
+        surf.scale(*scale)
 
         surf.setGLOptions('opaque')
         surf.setDepthValue(0)
@@ -121,9 +126,9 @@ class GRRasterScene:
 
 if __name__ == '__main__':
     scene = GRRasterScene() 
-    hash = scene.prov.add_terrain("./n27_w111_1arc_v3.dted")
+    hash = scene.prov.add_terrain("./n37_w107_1arc_v3.tif")
 
-    #scene.add_geometry(hash)
+    scene.add_geometry(hash)
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtWidgets.QApplication.instance().exec_()
 
