@@ -1,66 +1,23 @@
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
-from osgeo import gdal
+from osgeo import gdal, osr, ogr
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
 from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
+from typing import Tuple
 
-gl.shaders.Shaders.append(gl.shaders.ShaderProgram('myShader2', [
-    gl.shaders.VertexShader("""
-            varying vec3 normal;
-            varying float height;
-            void main() {
-                // compute here for use in fragment shader
-                normal = normalize(gl_NormalMatrix * gl_Normal);
-                height = gl_Vertex.z;
-                gl_FrontColor = gl_Color;
-                gl_BackColor = gl_Color;
-                gl_Position = ftransform();
-            }
-        """),
-    gl.shaders.FragmentShader("""
-            varying vec3 normal;
-            varying float height;
-            void main() {
-                // Map height to a color gradient
-                vec4 color;
-                float minHeight = 0.0;
-                float maxHeight = 1.0;
-                float normalizedHeight = (height - minHeight) / (maxHeight - minHeight);
+class TerrainTransform:
+    xo, yo, xres, yres, colrot, rowrot, weres, nsres, xsz, ysz = [None for _ in range(10)]
 
-                color.r = mix(0.2, 0.8, normalizedHeight); // red component
-                color.g = mix(0.5, 1.0, normalizedHeight); // green component
-                color.b = mix(0.0, 0.3, normalizedHeight); // blue component
-                color.a = 1.0; // alpha component
+    def __init__(self, geo_transform: Tuple[float, ...], _xsz: int, _ysz: int) -> None:
+        self.xo, self.weres, self.rowrot, self.yo, self.colrot, self.yres = geo_transform
+        self.xsz = _xsz;
+        self.ysz = _ysz;
 
-                gl_FragColor = color;
-            }
-        """)
-]))
-
-gl.shaders.Shaders.append(gl.shaders.ShaderProgram('myShader', [
-    gl.shaders.VertexShader("""
-            varying vec3 normal;
-            void main() {
-                // compute here for use in fragment shader
-                normal = normalize(gl_NormalMatrix * gl_Normal);
-                gl_FrontColor = gl_Color;
-                gl_BackColor = gl_Color;
-                gl_Position = ftransform();
-            }
-        """),
-    gl.shaders.FragmentShader("""
-            varying vec3 normal;
-            void main() {
-                vec4 color = gl_Color;
-                color.x = 0.0;
-                color.y = (normal.y + 1.0) * 0.5;
-                color.z = 0.0;
-                gl_FragColor = color;
-            }
-        """)
-]))
+    def get(self):
+        return (self.xo, self.weres, self.rowrot, self.yo, self.colrot, self.yres, self.xsz, self.ysz)
+        
 
 class GRDataProvider:
     data = {}
