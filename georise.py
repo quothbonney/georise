@@ -56,18 +56,10 @@ class TerrainTransform:
 
         return repr_str
 
-            
-        
 
-class GRDataProvider:
-    data = {}
-    __hash = 0
-
-    @classmethod
-    def increment_hash(cls):
-       cls.__hash += 1 
-
-    def add_terrain(self, fname: str) -> int:
+class RasterTerrain:
+    def __init__(self, fname: str) -> None:
+        self.__data = {} 
         src = gdal.Open(fname, gdal.GA_ReadOnly)
         band = src.GetRasterBand(1)
         if not band:
@@ -75,14 +67,29 @@ class GRDataProvider:
 
         geo_transform = src.GetGeoTransform()
         transform_object = TerrainTransform(geo_transform, src.RasterXSize, src.RasterYSize)
-        print("distance", transform_object.get_scale())
-        print(repr(transform_object))
-        tup = (transform_object, band.ReadAsArray())
+        self.__data['transform'] = transform_object
+        self.__data['g_array'] = band.ReadAsArray()
+        self.__data['driver'] = src.GetDriver().ShortName
 
-        self.data[self.__hash] = tup
+    def get_data(self):
+        return self.__data;
 
+        
+
+class GRDataProvider:
+    data = {}
+    __hash = 0
+
+
+    @classmethod
+    def increment_hash(cls):
+       cls.__hash += 1 
+
+
+    def add(self, terrain) -> int:
+        self.data[hash] = terrain.get_data()
+        self.increment_hash()
         return self.__hash
-
 
 class GRRasterScene:
     app = QtWidgets.QApplication([])
@@ -93,45 +100,51 @@ class GRRasterScene:
         self.w.opts['distance'] = 10 
         self.w.setWindowTitle('pyqtgraph example: GLLinePlotItem')
         self.w.setGeometry(0, 0, 600, 600)
+
+    def show(self) -> None:
+        print("Loading terrains... This may take a moment")
         self.w.show()
+        if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+            QtWidgets.QApplication.instance().exec_()
 
-    def add_geometry(self, hash):
-        skip = 4
-        elevs = self.prov.data[hash][1][::skip, ::skip]
-        # arr = data_tup[1]
-        x_sz, y_sz = elevs.shape
+    def resolve(self, skip=4):
+        for key in self.prov.data.keys():
 
-        y = np.linspace(0, y_sz - 1, y_sz)
-        x = np.linspace(0, x_sz - 1, x_sz)
-        print(elevs.shape)
+            elevs = self.prov.data[key]["g_array"][::skip, ::skip]
 
-        cmap = plt.get_cmap('twilight_shifted_r')
-        minZ=np.min(elevs)
-        maxZ=np.max(elevs)
-        img = cmap((elevs-minZ)/(maxZ -minZ))
-        
-        surf = gl.GLSurfacePlotItem(x=y, y=x, z=elevs, colors = img, shader='shaded')
+            # arr = data_tup[1]
+            x_sz, y_sz = elevs.shape
 
-        scale: Tuple[float, float, float] = self.prov.data[hash][0].get_scale()
+            y = np.linspace(0, y_sz - 1, y_sz)
+            x = np.linspace(0, x_sz - 1, x_sz)
+            print(elevs.shape)
 
-        surf.scale(*scale)
+            cmap = plt.get_cmap('twilight_shifted_r')
+            minZ=np.min(elevs)
+            maxZ=np.max(elevs)
+            img = cmap((elevs-minZ)/(maxZ -minZ))
+            
+            surf = gl.GLSurfacePlotItem(x=y, y=x, z=elevs, colors = img, shader='shaded')
 
-        surf.setGLOptions('opaque')
-        surf.setDepthValue(0)
+            scale: Tuple[float, float, float] = self.prov.data[key]["transform"].get_scale()
 
-        self.w.addItem(surf)
+            surf.scale(*scale)
+
+            surf.setGLOptions('opaque')
+            surf.setDepthValue(0)
+
+            self.w.addItem(surf)
 
 
 
 
 if __name__ == '__main__':
     scene = GRRasterScene() 
-    hash = scene.prov.add_terrain("./n37_w107_1arc_v3.tif")
+    terrain = RasterTerrain("./n37_w107_1arc_v3.tif")
 
-    scene.add_geometry(hash)
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
-
+    scene.prov.add(terrain)
+    scene.resolve()
+    scene.show()
 
 
 
