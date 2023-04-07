@@ -115,17 +115,17 @@ class GRRasterScene:
 
     def get_origin_from_minimum(self) -> Tuple[float, float]:
         # Set to the maxium values for each
-        print(self.prov.data)
         lat_min = -90.0
         lon_min = 90.0
         for key in self.prov.data:
-            print(key)
             if self.prov.data[key]['transform'].yo > lat_min:
-                lat_min = self.prov.data[key]['transform']
+                lat_min = self.prov.data[key]['transform'].yo
             if self.prov.data[key]['transform'].xo < lon_min:
-                lon_min = self.prov.data[key]['transform']
-
+                lon_min = self.prov.data[key]['transform'].xo
+        
+        print(lat_min, lon_min)
         return (lat_min, lon_min)
+
 
     
             
@@ -144,7 +144,6 @@ class GRRasterScene:
 
             y = np.linspace(0, y_sz - 1, y_sz)
             x = np.linspace(0, x_sz - 1, x_sz)
-            print(elevs.shape)
 
             cmap = plt.get_cmap('twilight_shifted_r')
             minZ=np.min(elevs)
@@ -169,8 +168,10 @@ class GRRasterScene:
 if __name__ == '__main__':
     scene = GRRasterScene() 
     terrain = RasterTerrain("../data/n37_w107_1arc_v3.tif", skip=4)
+    terrain2 = RasterTerrain("../data/n27_w111_1arc_v3.dted", skip=16)
 
     scene.prov.add(terrain)
+    scene.prov.add(terrain2)
     scene.resolve()
     scene.show()
 
