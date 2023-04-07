@@ -58,7 +58,7 @@ class TerrainTransform:
 
 
 class RasterTerrain:
-    def __init__(self, fname: str) -> None:
+    def __init__(self, fname: str, **kwargs) -> None:
         self.__data = {} 
         src = gdal.Open(fname, gdal.GA_ReadOnly)
         band = src.GetRasterBand(1)
@@ -70,6 +70,10 @@ class RasterTerrain:
         self.__data['transform'] = transform_object
         self.__data['g_array'] = band.ReadAsArray()
         self.__data['driver'] = src.GetDriver().ShortName
+
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+            self.__data[key] = value
 
     def get_data(self):
         return self.__data;
@@ -107,10 +111,13 @@ class GRRasterScene:
         if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
             QtWidgets.QApplication.instance().exec_()
 
-    def resolve(self, skip=4):
+    def resolve(self):
         for key in self.prov.data.keys():
 
-            elevs = self.prov.data[key]["g_array"][::skip, ::skip]
+            hashed = self.prov.data[key]
+            skip = hashed.get('skip', 4)
+
+            elevs = hashed["g_array"][::skip, ::skip]
 
             # arr = data_tup[1]
             x_sz, y_sz = elevs.shape
