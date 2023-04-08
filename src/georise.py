@@ -6,6 +6,30 @@ import sys
 import matplotlib.pyplot as plt
 from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 from typing import Tuple
+from geopy.distance import geodesic
+
+def get_distance_between_lat_lon_points_geopy(lat1, lon1, lat2, lon2):
+    point1 = (lat1, lon1)
+    point2 = (lat2, lon2)
+    distance = geodesic(point1, point2).meters
+    return distance
+
+def latlong_to_xy(lat, lon, target_srs):
+    source_srs = osr.SpatialReference()
+    source_srs.ImportFromEPSG(4326)
+
+    transformation = osr.CoordinateTransformation(source_srs, target_srs)
+    return transformation.TransformPoint(lon, lat)[:2]
+
+
+def distance_between_points(lat1, lon1, lat2, lon2):
+    target_srs = osr.SpatialReference()
+    target_srs.ImportFromEPSG(3857)  # WGS 84 / Pseudo-Mercator
+
+    x1, y1 = latlong_to_xy(lat1, lon1, target_srs)
+    x2, y2 = latlong_to_xy(lat2, lon2, target_srs)
+
+    return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
 
 
 class TerrainTransform:
@@ -26,22 +50,6 @@ class TerrainTransform:
 
         xmax = self.xo + (self.weres * self.xsz)
         ymax = self.yo + (self.nsres * self.ysz)
-
-        def latlong_to_xy(lat, lon, target_srs):
-            source_srs = osr.SpatialReference()
-            source_srs.ImportFromEPSG(4326)
-
-            transformation = osr.CoordinateTransformation(source_srs, target_srs)
-            return transformation.TransformPoint(lon, lat)[:2]
-
-        def distance_between_points(lat1, lon1, lat2, lon2):
-            target_srs = osr.SpatialReference()
-            target_srs.ImportFromEPSG(3857)  # WGS 84 / Pseudo-Mercator
-
-            x1, y1 = latlong_to_xy(lat1, lon1, target_srs)
-            x2, y2 = latlong_to_xy(lat2, lon2, target_srs)
-
-            return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
 
         xscale = distance_between_points(self.xo, self.yo, self.xo, ymax) / self.ysz
         yscale = distance_between_points(self.xo, self.yo, xmax, self.yo) / self.xsz
@@ -93,7 +101,7 @@ class GRDataProvider:
 
 
     def add(self, terrain) -> int:
-        self.data[hash] = terrain.get_data()
+        self.data[self.__hash] = terrain.get_data()
         self.increment_hash()
         return self.__hash
 
@@ -126,16 +134,28 @@ class GRRasterScene:
         print(lat_min, lon_min)
         return (lat_min, lon_min)
 
+    def get_position(self, transform, scale: Tuple[float, float, float]) -> Tuple[int, int]:
+        lat1, lon1 = self.ll_origin
+        lat2, lon2 = (transform.yo, transform.xo)
+
+        lat_dist = get_distance_between_lat_lon_points_geopy(lat1, lon1, lat2, lon1)
+        lon_dist = get_distance_between_lat_lon_points_geopy(lat1, lon1, lat1, lon2)
+
+        lat_ind = int(lat_dist / scale[1])
+        lon_ind = int(lon_dist / scale[0])
+
+        return (lat_ind, lon_ind)
 
     
             
 
     def resolve(self):
-        self.get_origin_from_minimum()
+        self.ll_origin = self.get_origin_from_minimum()
         for key in self.prov.data.keys():
 
             hashed = self.prov.data[key]
             skip = hashed.get('skip', 4)
+
 
             elevs = hashed["g_array"][::skip, ::skip]
 
@@ -153,8 +173,14 @@ class GRRasterScene:
             surf = gl.GLSurfacePlotItem(x=y, y=x, z=elevs, colors = img, shader='shaded')
 
             scale: Tuple[float, float, float] = self.prov.data[key]["transform"].get_scale()
+            position: Tuple[float, float] = self.get_position(hashed['transform'], scale)
 
-            surf.scale(scale[0] * skip, scale[1] * skip, 1)
+            print("SCALE", scale)
+            print("POSITION", position)
+
+            surf.translate(*position, 0)
+
+            surf.scale(scale[0] * skip, scale[1] * skip, skip)
             surf.translate(*hashed['coord_pos'])
 
             surf.setGLOptions('opaque')
@@ -167,8 +193,8 @@ class GRRasterScene:
 
 if __name__ == '__main__':
     scene = GRRasterScene() 
-    terrain = RasterTerrain("../data/n37_w107_1arc_v3.tif", skip=4)
-    terrain2 = RasterTerrain("../data/n27_w111_1arc_v3.dted", skip=16)
+    terrain = RasterTerrain("../data/n37_w107_1arc_v3.tif", skip=16)
+    terrain2 = RasterTerrain("../data/n37_w104_1arc_v3.tif", skip=16)
 
     scene.prov.add(terrain)
     scene.prov.add(terrain2)
