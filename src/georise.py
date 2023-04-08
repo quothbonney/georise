@@ -109,6 +109,7 @@ class GRRasterScene:
     app = QtWidgets.QApplication([])
     w = gl.GLViewWidget()
     prov = GRDataProvider()
+    scaling = (1, 1, 1)
 
     def __init__(self) -> None: 
         self.w.opts['distance'] = 10 
@@ -138,11 +139,13 @@ class GRRasterScene:
         lat1, lon1 = self.ll_origin
         lat2, lon2 = (transform.yo, transform.xo)
 
-        lat_dist = get_distance_between_lat_lon_points_geopy(lat1, lon1, lat2, lon1)
-        lon_dist = get_distance_between_lat_lon_points_geopy(lat1, lon1, lat1, lon2)
+        lat_ind = (lat2-lat1)
+        lon_ind = (lon2-lon1)
+        # lat_dist = get_distance_between_lat_lon_points_geopy(lat1, lon1, lat2, lon1)
+        # lon_dist = get_distance_between_lat_lon_points_geopy(lat1, lon1, lat1, lon2)
 
-        lat_ind = int(lat_dist / scale[1])
-        lon_ind = int(lon_dist / scale[0])
+        # lat_ind = int(lat_dist / (scale[1]*transform.ysz))
+        # lon_ind = int(lon_dist / (scale[0]*transform.xsz))
 
         return (lat_ind, lon_ind)
 
@@ -171,16 +174,22 @@ class GRRasterScene:
             img = cmap((elevs-minZ)/(maxZ -minZ))
             
             surf = gl.GLSurfacePlotItem(x=y, y=x, z=elevs, colors = img, shader='shaded')
+            
+            # Let the first raster define the scaling (temporary placement solution)
+            if key == 0:
+                ob = self.prov.data[key]["transform"]
+                raster_distance = get_distance_between_lat_lon_points_geopy(*self.ll_origin, ob.yo + (ob.nsres * ob.ysz), self.ll_origin[1])
+                self.scaling = (ob.nsres, ob.weres, 1/raster_distance) 
 
-            scale: Tuple[float, float, float] = self.prov.data[key]["transform"].get_scale()
-            position: Tuple[float, float] = self.get_position(hashed['transform'], scale)
 
-            print("SCALE", scale)
+            position: Tuple[float, float] = self.get_position(hashed['transform'], self.scaling)
+
+            print("SCALE", self.scaling)
             print("POSITION", position)
 
             surf.translate(*position, 0)
 
-            surf.scale(scale[0] * skip, scale[1] * skip, skip)
+            surf.scale(self.scaling[0] * skip, self.scaling[1] * skip, self.scaling[2])
             surf.translate(*hashed['coord_pos'])
 
             surf.setGLOptions('opaque')
@@ -195,9 +204,11 @@ if __name__ == '__main__':
     scene = GRRasterScene() 
     terrain = RasterTerrain("../data/n37_w107_1arc_v3.tif", skip=16)
     terrain2 = RasterTerrain("../data/n37_w104_1arc_v3.tif", skip=16)
+    terrain3 = RasterTerrain("../data/n37_w108_1arc_v3.tif", skip=16)
 
     scene.prov.add(terrain)
     scene.prov.add(terrain2)
+    scene.prov.add(terrain3)
     scene.resolve()
     scene.show()
 
