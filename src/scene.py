@@ -12,23 +12,33 @@ from glview import GRWidget
 class SceneCoordinateProvider:
     def __init__(self) -> None:
         self.__ll_origin = (0, 0, 0)
+        self.__origin_scaling = (1, 1, 1)
         self.__spatial_scaling = (1, 1, 1)
 
     def set_origin_ll(self, transform):
         self.__ll_origin = (transform.yo, transform.xo, 0)
         self.__spatial_scaling = (transform.nsres, transform.weres, 1/transform.get_size_meters()[0])
-        print(self.__spatial_scaling)
+
+        max_ll = (transform.yo + (transform.nsres * transform.ysz), transform.xo + (transform.weres * transform.xsz))
+
+        lon_dist = util.get_distance_between_lat_lon_points_geopy(self.__ll_origin[0], self.__ll_origin[1], self.__ll_origin[0], max_ll[1])
+        lat_dist = util.get_distance_between_lat_lon_points_geopy(self.__ll_origin[0], self.__ll_origin[1], max_ll[0], self.__ll_origin[1])
+
+        self.__origin_scaling= tuple((lat_dist / lat_dist, lon_dist / lat_dist, 1))
       
     def get_origin(self):
         return self.__ll_origin
 
     def get_scaling(self):
-        return self.__spatial_scaling
+        adjusted_scaling = tuple((spacial*coordinate for spacial, coordinate in zip(self.__spatial_scaling, self.__origin_scaling)))
+        print(adjusted_scaling)
+        return adjusted_scaling
      
     def get_position_from_transform(self, transform): 
-       dist = (transform.yo - self.__ll_origin[0], transform.xo - self.__ll_origin[1], 0) 
-       vals = (dist[0] / self.__spatial_scaling[0], dist[1] / self.__spatial_scaling[1], 0)
-       return dist
+        adjusted_scaling = tuple((spacial*coordinate for spacial, coordinate in zip(self.__spatial_scaling, self.__origin_scaling)))
+        dist = (transform.yo - self.__ll_origin[0], transform.xo - self.__ll_origin[1], 0) 
+        vals = (dist[0] * adjusted_scaling[0], dist[1] * adjusted_scaling[1], 0)
+        return vals
 
 
 
