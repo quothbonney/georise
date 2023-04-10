@@ -6,16 +6,42 @@ from typing import Tuple
 import numpy as np
 import sys
 import provider, util
+from glview import GRWidget
+
+
+class SceneCoordinateProvider:
+    def __init__(self) -> None:
+        self.__ll_origin = (0, 0, 0)
+        self.__spatial_scaling = (1, 1, 1)
+
+    def set_origin_ll(self, transform):
+        self.__ll_origin = (transform.yo, transform.xo, 0)
+        self.__spatial_scaling = (transform.nsres, transform.weres, 1/transform.get_size_meters()[0])
+        print(self.__spatial_scaling)
+      
+    def get_origin(self):
+        return self.__ll_origin
+
+    def get_scaling(self):
+        return self.__spatial_scaling
+     
+    def get_position_from_transform(self, transform): 
+       dist = (transform.yo - self.__ll_origin[0], transform.xo - self.__ll_origin[1], 0) 
+       vals = (dist[0] / self.__spatial_scaling[0], dist[1] / self.__spatial_scaling[1], 0)
+       return dist
+
+
+
 
 class GRRasterScene:
     app = QtWidgets.QApplication([])
-    w = gl.GLViewWidget()
+    w = GRWidget()
     prov = provider.GRDataProvider()
-    scaling = (1, 1, 1)
 
     def __init__(self) -> None: 
+        self.w.set_means(self.prov.data)
         self.w.opts['distance'] = 10 
-        self.w.setWindowTitle('pyqtgraph example: GLLinePlotItem')
+        self.w.setWindowTitle('Georise Visual')
         self.w.setGeometry(0, 0, 600, 600)
 
     def show(self) -> None:
@@ -53,6 +79,7 @@ class GRRasterScene:
     
     def resolve(self):
         self.ll_origin = self.get_origin_from_minimum()
+        coord_prov = SceneCoordinateProvider()
         for key in self.prov.data.keys():
 
             hashed = self.prov.data[key]
@@ -71,25 +98,28 @@ class GRRasterScene:
             minZ=np.min(elevs)
             maxZ=np.max(elevs)
             img = cmap((elevs-minZ)/(maxZ -minZ))
+
+            if key == 0:
+                coord_prov.set_origin_ll(hashed["transform"])
             
             surf = gl.GLSurfacePlotItem(x=y, y=x, z=elevs, colors = img, shader='shaded')
             
             # Let the first raster define the scaling (temporary placement solution)
-            if key == 0:
-                ob = self.prov.data[key]["transform"]
-                raster_distance = util.get_distance_between_lat_lon_points_geopy(*self.ll_origin, ob.yo + (ob.nsres * ob.ysz), self.ll_origin[1])
-                self.scaling = (ob.nsres, ob.weres, 1/raster_distance) 
 
+            # position: Tuple[float, float] = self.get_position(hashed['transform'], self.scaling)
+            #hashed['coord_pos'] = (*position, 0)
 
-            position: Tuple[float, float] = self.get_position(hashed['transform'], self.scaling)
+            #print("SCALE", self.scaling)
+            #print("POSITION", position)
 
-            print("SCALE", self.scaling)
-            print("POSITION", position)
+            #surf.translate(*hashed['coord_pos'])
 
-            surf.translate(*position, 0)
-
-            surf.scale(self.scaling[0] * skip, self.scaling[1] * skip, self.scaling[2])
-            surf.translate(*hashed['coord_pos'])
+            #surf.scale(hashed['transform'].nsres * skip, hashed['transform'].weres * skip, 1/hashed['transform'].get_size_meters()[0])
+            scaling = coord_prov.get_scaling()
+            position = coord_prov.get_position_from_transform(hashed['transform'])
+            surf.translate(*position)
+            surf.scale(scaling[0] * skip, scaling[1] * skip, scaling[2])
+            # surf.translate(hashed['transform'].yo, hashed['transform'].xo, 0)
 
             surf.setGLOptions('opaque')
             surf.setDepthValue(0)
