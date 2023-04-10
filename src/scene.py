@@ -35,9 +35,8 @@ class SceneCoordinateProvider:
         return adjusted_scaling
      
     def get_position_from_transform(self, transform): 
-        adjusted_scaling = tuple((spacial*coordinate for spacial, coordinate in zip(self.__spatial_scaling, self.__origin_scaling)))
         dist = (transform.yo - self.__ll_origin[0], transform.xo - self.__ll_origin[1], 0) 
-        vals = (dist[0] * adjusted_scaling[0], dist[1] * adjusted_scaling[1], 0)
+        vals = (dist[0] * self.__origin_scaling[0], dist[1] * self.__origin_scaling[1], 0)
         return vals
 
 
