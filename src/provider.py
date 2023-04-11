@@ -15,7 +15,10 @@ class RasterTerrain:
         self.__data['transform'] = transform_object
         self.__data['g_array'] = band.ReadAsArray()
         self.__data['driver'] = src.GetDriver().ShortName
-        self.__data['coord_pos'] = (0., 0., 0.);
+        self.__data['coord_pos'] = None 
+        self.__data['coord_max'] = None
+        self.__data['mesh_scale'] = (1, 1, 1)
+        self.__data['border'] = True
 
         for key, value in kwargs.items():
             setattr(self, key, value)

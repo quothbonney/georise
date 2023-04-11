@@ -31,21 +31,25 @@ class SceneCoordinateProvider:
 
     def get_scaling(self):
         adjusted_scaling = tuple((spacial*coordinate for spacial, coordinate in zip(self.__spatial_scaling, self.__origin_scaling)))
-        print(adjusted_scaling)
         return adjusted_scaling
      
+    # Returns the top left and bottom right coordinates for the raster
     def get_position_from_transform(self, transform): 
         dist = (transform.yo - self.__ll_origin[0], transform.xo - self.__ll_origin[1], 0) 
-        vals = (dist[0] * self.__origin_scaling[0], dist[1] * self.__origin_scaling[1], 0)
-        return vals
-
+        max_vals = (transform.yo + (transform.nsres * transform.ysz), transform.xo + (transform.weres * transform.xsz))
+        max_dist = (max_vals[0] - self.__ll_origin[0], max_vals[1] - self.__ll_origin[1], 0) 
+        # Top left location
+        tl = (dist[0] * self.__origin_scaling[0], dist[1] * self.__origin_scaling[1], 0)
+        br = (max_dist[0] * self.__origin_scaling[0], max_dist[1] * self.__origin_scaling[1], 0)
+        
+        return (tl, br) 
 
 
 
 class GRRasterScene:
     app = QtWidgets.QApplication([])
-    w = GRWidget()
     prov = provider.GRDataProvider()
+    w = GRWidget(prov)
 
     def __init__(self) -> None: 
         self.w.set_means(self.prov.data)
@@ -111,26 +115,20 @@ class GRRasterScene:
             if key == 0:
                 coord_prov.set_origin_ll(hashed["transform"])
             
-            surf = gl.GLSurfacePlotItem(x=y, y=x, z=elevs, colors = img, shader='shaded')
-            
-            # Let the first raster define the scaling (temporary placement solution)
+            surf = gl.GLSurfacePlotItem(x=y, y=x, z=elevs, colors=img, shader='shaded')
 
-            # position: Tuple[float, float] = self.get_position(hashed['transform'], self.scaling)
-            #hashed['coord_pos'] = (*position, 0)
-
-            #print("SCALE", self.scaling)
-            #print("POSITION", position)
-
-            #surf.translate(*hashed['coord_pos'])
-
-            #surf.scale(hashed['transform'].nsres * skip, hashed['transform'].weres * skip, 1/hashed['transform'].get_size_meters()[0])
             scaling = coord_prov.get_scaling()
-            position = coord_prov.get_position_from_transform(hashed['transform'])
-            surf.translate(*position)
-            surf.scale(scaling[0] * skip, scaling[1] * skip, scaling[2])
+            hashed['coord_pos'], hashed['coord_max'] = coord_prov.get_position_from_transform(hashed['transform'])
+            hashed['mesh_scale'] = (scaling[0] * skip, scaling[1] * skip, scaling[2])
+
+            surf.translate(*hashed['coord_pos'])
+            surf.scale(*hashed['mesh_scale'])
             # surf.translate(hashed['transform'].yo, hashed['transform'].xo, 0)
 
             surf.setGLOptions('opaque')
             surf.setDepthValue(0)
 
-            self.w.addItem(surf)
+            self.prov.data[key]['mesh'] = surf
+
+        self.w.set_provider(self.prov)
+        self.w.resolve()
