@@ -7,7 +7,7 @@ from typing import Tuple
 import numpy as np
 import sys
 from . import provider, util
-from glview import GRWidget
+from .glview import GRWidget
 
 
 class GRRasterScene:
@@ -15,11 +15,15 @@ class GRRasterScene:
     prov = provider.GRDataProvider()
     w = GRWidget(prov)
 
+    # Aliasing functions to prettify the API
+    add = prov.add
+
     def __init__(self) -> None: 
         self.w.set_means(self.prov.data)
         self.w.opts['distance'] = 10 
         self.w.setWindowTitle('Georise Visual')
         self.w.setGeometry(0, 0, 600, 600)
+        self.resolved = False
 
         # self.scale_overlay = ScaleOverlay(self.w)
         # self.scale_overlay.setGeometry(10, 10, 200, 100)
@@ -33,6 +37,8 @@ class GRRasterScene:
 
     def show(self) -> None:
         print("Loading terrains... This may take a moment")
+        if not self.resolved:
+            self.resolve()
         self.w.show()
         if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
             QtWidgets.QApplication.instance().exec_()
@@ -120,3 +126,4 @@ class GRRasterScene:
 
         self.w.set_provider(self.prov)
         self.w.resolve()
+        self.resolved = True

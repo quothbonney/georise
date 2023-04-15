@@ -1,6 +1,6 @@
 from osgeo import gdal
-from transform import TerrainTransform
-import util
+from .transform import TerrainTransform
+from . import util
 
 class SceneCoordinateProvider:
     def __init__(self) -> None:
