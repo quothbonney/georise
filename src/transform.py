@@ -1,6 +1,6 @@
 from typing import Tuple
 from osgeo import gdal, osr, ogr
-import util
+from . import util
 
 class TerrainTransform:
     def __init__(self, geo_transform: Tuple[float, ...], _xsz: int, _ysz: int) -> None:
@@ -45,6 +45,19 @@ class TerrainTransform:
 
         scale_tup = tuple(xscale / xscale, yscale / xscale, 1)
         return scale_tup 
+
+    def validate_transform(self):
+        if (
+            self.yo < -90 or 
+            self.yo > 90 or 
+            self.xo < -180 or 
+            self.xo > 180 
+            ):
+            return False 
+        return True 
+
+
+
 
     def __repr__(self) -> str:
         categories = ["X-Origin", "W-E Res.", "Row Rot.", "Y-Origin", "Column Rot.", "N-S Res.", "X-Size\t", "Y-Size\t"]

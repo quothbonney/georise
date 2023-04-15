@@ -1,44 +1,58 @@
 from osgeo import gdal
 from transform import TerrainTransform
+import util
 
-class RasterTerrain:
-    def __init__(self, fname: str, **kwargs) -> None:
-        self.__data = {} 
-        src = gdal.Open(fname, gdal.GA_ReadOnly)
-        band = src.GetRasterBand(1)
-        if not band:
-            raise ValueError(f"No data in raster band {fname}")
+class SceneCoordinateProvider:
+    def __init__(self) -> None:
+        self.__ll_origin = (0, 0, 0)
+        self.__origin_scaling = (1, 1, 1)
+        self.__spatial_scaling = (1, 1, 1)
+        self.__scaling = (1, 1, 1)
 
-        geo_transform = src.GetGeoTransform() 
+    def set_origin_ll(self, transform):
+        self.__ll_origin = (transform.yo, transform.xo, 0)
+        self.__spatial_scaling = (transform.nsres, transform.weres, 1/transform.get_size_meters()[0])
 
-        transform_object = TerrainTransform(geo_transform, src.RasterXSize, src.RasterYSize)
-        self.__data['transform'] = transform_object
-        self.__data['g_array'] = band.ReadAsArray()
-        self.__data['driver'] = src.GetDriver().ShortName
-        self.__data['coord_pos'] = None 
-        self.__data['coord_max'] = None
-        self.__data['mesh_scale'] = (1, 1, 1)
-        self.__data['border'] = True
+        max_ll = (transform.yo + (transform.nsres * transform.ysz), transform.xo + (transform.weres * transform.xsz))
 
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-            self.__data[key] = value
+        lon_dist = util.get_distance_between_lat_lon_points_geopy(self.__ll_origin[0], self.__ll_origin[1], self.__ll_origin[0], max_ll[1])
+        lat_dist = util.get_distance_between_lat_lon_points_geopy(self.__ll_origin[0], self.__ll_origin[1], max_ll[0], self.__ll_origin[1])
 
-    def get_data(self):
-        return self.__data;
+        self.__origin_scaling= tuple((lat_dist / lat_dist, lon_dist / lat_dist, 1))
+        self.__scaling = tuple((spacial*coordinate for spacial, coordinate in zip(self.__spatial_scaling, self.__origin_scaling)))
+      
+    def get_origin(self):
+        return self.__ll_origin
+
+    def get_scaling(self):
+        return self.__scaling 
+     
+    # Returns the top left and bottom right coordinates for the raster
+    def get_position_from_transform(self, transform): 
+        dist = (transform.yo - self.__ll_origin[0], transform.xo - self.__ll_origin[1], 0) 
+        max_vals = (transform.yo + (transform.nsres * transform.ysz), transform.xo + (transform.weres * transform.xsz))
+        max_dist = (max_vals[0] - self.__ll_origin[0], max_vals[1] - self.__ll_origin[1], 0) 
+        # Top left location
+        tl = (dist[0] * self.__origin_scaling[0], dist[1] * self.__origin_scaling[1], 0)
+        br = (max_dist[0] * self.__origin_scaling[0], max_dist[1] * self.__origin_scaling[1], 0)
+        
+        return (tl, br) 
 
 
 class GRDataProvider:
     data = {}
+    coord = SceneCoordinateProvider()
+
     __hash = 0
-    ll_origin = (0, 0)
 
     @classmethod
     def increment_hash(cls):
        cls.__hash += 1 
 
 
-    def add(self, terrain) -> int:
-        self.data[self.__hash] = terrain.get_data()
-        self.increment_hash()
-        return self.__hash
+    def add(self, *terrains) -> None:
+        for terrain in terrains:
+            self.data[self.__hash] = terrain.get_data()
+            self.increment_hash()
+
+
