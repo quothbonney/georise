@@ -55,7 +55,7 @@ class GRDataProvider:
 
     def add(self, *terrains) -> None:
         for terrain in terrains:
-            self.data[self.__hash] = terrain.get_data()
+            self.data[self.__hash] = terrain
             if terrain.minz < self.z_interval[0]: self.z_interval[0] = terrain.minz
             if terrain.maxz > self.z_interval[1]: self.z_interval[1] = terrain.maxz
 

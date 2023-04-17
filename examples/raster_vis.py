@@ -1,4 +1,5 @@
 # This is the simplest way of creating a 3D scene with Georise
+# It is designed to be as similar to matplotlib as possible for ease of use
 
 import georise.scene
 

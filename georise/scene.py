@@ -8,7 +8,7 @@ import numpy as np
 import sys
 from . import provider, util, raster
 from .glview import GRWidget
-
+from .raster import RasterTerrain
 
 class GRRasterScene:
     app = QtWidgets.QApplication([])
@@ -54,17 +54,17 @@ class GRRasterScene:
         lon_min = 90.0
         for key in self.prov.data:
             if (
-                self.prov.data[key]['transform'].yo < -90 or 
-                self.prov.data[key]['transform'].yo > 90 or 
-                self.prov.data[key]['transform'].xo < -90 or 
-                self.prov.data[key]['transform'].xo > 90
+                self.prov.data[key].transform.yo < -90 or 
+                self.prov.data[key].transform.yo > 90 or 
+                self.prov.data[key].transform.xo < -90 or 
+                self.prov.data[key].transform.xo > 90
                 ):
                 return (0, 0)
 
-            if self.prov.data[key]['transform'].yo > lat_min:
-                lat_min = self.prov.data[key]['transform'].yo
-            if self.prov.data[key]['transform'].xo < lon_min:
-                lon_min = self.prov.data[key]['transform'].xo
+            if self.prov.data[key].transform.yo > lat_min:
+                lat_min = self.prov.data[key].transform.yo
+            if self.prov.data[key].transform.xo < lon_min:
+                lon_min = self.prov.data[key].transform.xo
         
         print(lat_min, lon_min)
         return (lat_min, lon_min)
@@ -87,11 +87,11 @@ class GRRasterScene:
         self.ll_origin = self.get_origin_from_minimum()
         for key in self.prov.data.keys():
 
-            hashed = self.prov.data[key]
-            skip = hashed.get('skip', 4)
+            hashed: RasterTerrain = self.prov.data[key]
+            skip = hashed.skip
 
 
-            elevs = hashed["g_array"][::skip, ::skip]
+            elevs = hashed.g_array[::skip, ::skip]
 
             # arr = data_tup[1]
             x_sz, y_sz = elevs.shape
@@ -104,28 +104,20 @@ class GRRasterScene:
             minZ, maxZ = self.prov.z_interval
             img = cmap((elevs-minZ)/(maxZ -minZ))
 
-            if key == 0:
-                if hashed["transform"]:
-                    self.prov.coord.set_origin_ll(hashed["transform"])
-                else:
-                    pass  
-            
-            print(len(x), len(y))
-            surf = gl.GLSurfacePlotItem(x=x, y=y, z=elevs, colors=img, shader='shaded')
+            if key == 0 and hashed.transform:
+                self.prov.coord.set_origin_ll(hashed.transform)
 
             scaling = self.prov.coord.get_scaling()
-            print(scaling)
-            hashed['coord_pos'], hashed['coord_max'] = self.prov.coord.get_position_from_transform(hashed['transform'])
-            hashed['mesh_scale'] = (scaling[0] * skip, scaling[1] * skip, scaling[2])
+            hashed.coord_pos, hashed.coord_max = self.prov.coord.get_position_from_transform(hashed.transform)
+            hashed.mesh_scale = (scaling[0] * skip, scaling[1] * skip, scaling[2])
 
-            surf.translate(*hashed['coord_pos'])
-            surf.scale(*hashed['mesh_scale'])
-            # surf.translate(hashed['transform'].yo, hashed['transform'].xo, 0)
-
-            surf.setGLOptions('opaque')
-            surf.setDepthValue(0)
-
-            self.prov.data[key]['mesh'] = surf
+            # AWFUL CODE WARNING: The way this whole thing works is with dictoaries
+            # That hold all the values. This works pretty well. the problem is that when
+            # You put all the attributes into a seperate dictionary, you lose all of the methods
+            # Attached to them. Now, at the peril of refactoring this whole codebase, I am passing
+            # The mesh constructor function `construct_rasters` as a first class object to the
+            # Dictionary. I apologize.
+            hashed.construct_rasters(x=x, y=y, z=elevs, colors=img)
 
         self.w.set_provider(self.prov)
         self.w.resolve()

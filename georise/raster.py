@@ -1,72 +1,90 @@
-from osgeo import gdal
+from dataclasses import dataclass, field
+from typing import List, Callable, NamedTuple, Tuple
 import numpy as np
+from osgeo import gdal
+import pyqtgraph.opengl as gl
 from .transform import TerrainTransform
 
+
+class Coordinates(NamedTuple):
+    x: float
+    y: float
+    z: float
+
+
+@dataclass
 class RasterTerrain:
-    def __init__(self, fname: str, **kwargs) -> None:
-        self.__data = {} 
-        self.fname = fname
-        src = gdal.Open(fname, gdal.GA_ReadOnly)
+    fname: str
+    skip: int = 4
+    transform: TerrainTransform = field(init=False)
+    g_array: np.ndarray = field(init=False)
+    driver: str = field(init=False)
+    coord_pos: Coordinates = field(default_factory=lambda: Coordinates(0, 0, 0))
+    coord_max: Coordinates = field(default_factory=lambda: Coordinates(0, 0, 0))
+    mesh_scale: Coordinates = field(default_factory=lambda: Coordinates(1, 1, 1))
+    border: bool = True
+    mesh: List[gl.GLSurfacePlotItem] = field(default_factory=list)
+    minz: float = field(init=False)
+    maxz: float = field(init=False)
+
+    def __post_init__(self, **kwargs) -> None:
+        src = gdal.Open(self.fname, gdal.GA_ReadOnly)
         band = src.GetRasterBand(1)
         if not band:
-            raise ValueError(f"No data in raster band {fname}")
-        geo_transform = src.GetGeoTransform() 
-        transform_object = TerrainTransform(geo_transform, src.RasterXSize, src.RasterYSize)
+            raise ValueError(f"No data in raster band {self.fname}")
+        geo_transform = src.GetGeoTransform()
 
+        # Create geotransform object and define attributes
+        self.transform = TerrainTransform(geo_transform, src.RasterXSize, src.RasterYSize)
 
         geotiff_unit_type = band.GetUnitType()
-        elevation_data = band.ReadAsArray()
+        self.g_array = band.ReadAsArray()
 
-        # Store minimum and maximum values for cmap testing
-        # (Passed to the provider object when added to scene)
-        self.minz = np.min(elevation_data)
-        self.maxz = np.max(elevation_data)
+        # Save the minimum and max z values so that the color scheme is consistent
+        self.minz = np.min(self.g_array)
+        self.maxz = np.max(self.g_array)
 
-        # Convert the raster to meters if it is another data type. Not tested.
-        if geotiff_unit_type == 'ft' or geotiff_unit_type == 'feet':
-            elevation_data = elevation_data * 0.3048  # Convert feet to meters
-        elif geotiff_unit_type == 'yd' or geotiff_unit_type == 'yards':
-            elevation_data = elevation_data * 0.9144  # Convert yards to meters
+        # Attempt to convert to meters if the geotiff units are not
+        if geotiff_unit_type in {'ft', 'feet'}:
+            self.g_array = self.g_array * 0.3048
+        elif geotiff_unit_type in {'yd', 'yards'}:
+            self.g_array = self.g_array * 0.9144
 
-        self.__data['transform'] = transform_object
-        self.__data['g_array'] = elevation_data
-        self.__data['driver'] = src.GetDriver().ShortName
-        self.__data['coord_pos'] = None 
-        self.__data['coord_max'] = None
-        self.__data['mesh_scale'] = (1, 1, 1)
-        self.__data['border'] = True
+        self.driver = src.GetDriver().ShortName
 
-        # If the transform object is not valid, add dummy data
-        if not transform_object.validate_transform():
-            print(f"WARNING: Geolocation data from file {self.fname}. cannot be read. GeoTransform returned  {transform_object.get()}. This most likely is due to corrupted metadata. If the problem persists, consider RasterTerrain.add_metadata()")
+        if not self.transform.validate_transform():
+            print(f"WARNING: Geolocation data from file {self.fname}. cannot be read. GeoTransform returned  {self.transform.get()}. This most likely is due to corrupted metadata. If the problem persists, consider RasterTerrain.add_metadata()")
             self.add_metadata()
 
-        print(self.__data['transform'])
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-            self.__data[key] = value
-
-    def get_data(self):
-        return self.__data;
-
-    def set_scale(self, x=None, y=None, z=None):
-        list_tup = list(self.__data['mesh_scale'])
+    def set_scale(self, x: float = None, y: float = None, z: float = None) -> None:
+        list_tup = list(self.mesh_scale)
         if x:
             list_tup[0] = x
-            self.__data['mesh_scale'] = tuple(list_tup)
+            self.mesh_scale = Coordinates(*list_tup)
         if y:
-            list_tup[1] = y 
-            self.__data['mesh_scale'] = tuple(list_tup)
+            list_tup[1] = y
+            self.mesh_scale = Coordinates(*list_tup)
         if z:
-            list_tup[2] = z 
-            self.__data['mesh_scale'] = tuple(list_tup)
+            list_tup[2] = z
+            self.mesh_scale = Coordinates(*list_tup)
 
-    def add_metadata(self, lonorigin=0, latorigin=0, nsres=-0.001, weres=-0.001, arc=None):
+    def add_metadata(self, lonorigin: float = 0, latorigin: float = 0, nsres: float = -0.001, weres: float = -0.001, arc: Tuple[float, float] = None) -> None:
         if arc:
-            self.__data['transform'].nsres = arc[0]
-            self.__data['transform'].weres = arc[1] 
+            self.transform.nsres = arc[0]
+            self.transform.weres = arc[1]
         else:
-            self.__data['transform'].nsres = nsres 
-            self.__data['transform'].weres = weres 
-        self.__data['transform'].yo = lonorigin
-        self.__data['transform'].xo = latorigin 
+            self.transform.nsres = nsres
+            self.transform.weres = weres
+        self.transform.yo = lonorigin
+        self.transform.xo
+
+    def construct_rasters(self, x, y, z, colors, **kwargs):
+        surf = gl.GLSurfacePlotItem(x=x, y=y, z=z, colors=colors, shader='shaded')
+        surf.translate(*self.coord_pos)
+        surf.scale(*self.mesh_scale)
+        # surf.translate(hashed['transform'].yo, hashed['transform'].xo, 0)
+
+        surf.setGLOptions('opaque')
+        surf.setDepthValue(0)
+
+        self.mesh.append(surf)
