@@ -11,7 +11,8 @@ if __name__ == '__main__':
     # terrain = RasterTerrain("../data/n37_w107_1arc_v3.tif", skip=16)
     # terrain2 = RasterTerrain("../data/n37_w104_1arc_v3.tif", skip=16)
 
-    gplt.raster("../data/n37_w107_1arc_v3.tif", skip=16)
+    gplt.raster("../data/n37_w107_1arc_v3.tif", skip=2)
+    gplt.raster("../data/n37_w108_1arc_v3.tif", skip=2)
     # Add terrains as *args and show
     # gplt.add(terrain, terrain2)
     gplt.show()

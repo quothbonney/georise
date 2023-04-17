@@ -1,5 +1,8 @@
 # Georise
 
+<p align="center">
+  <img src="data/example.png" alt="example">
+</p>
 `Georise` is a Python library built for interactive visualization of geospatial maps. It leverages the power of GDAL and PyQtGraph to provide a user-friendly, high-performance mapping solution. With its simple, Matplotlib-like API, it aims to make geospatial visualization accessible, easy, and beautiful.
 
 **Please note:** Georise is currently in early development and may not be suitable for major use. However, it is being actively developed and improved every day.
