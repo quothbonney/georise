@@ -1,4 +1,5 @@
 from osgeo import gdal
+import numpy as np
 from .transform import TerrainTransform
 
 class RasterTerrain:
@@ -9,7 +10,6 @@ class RasterTerrain:
         band = src.GetRasterBand(1)
         if not band:
             raise ValueError(f"No data in raster band {fname}")
-
         geo_transform = src.GetGeoTransform() 
         transform_object = TerrainTransform(geo_transform, src.RasterXSize, src.RasterYSize)
 
@@ -17,6 +17,12 @@ class RasterTerrain:
         geotiff_unit_type = band.GetUnitType()
         elevation_data = band.ReadAsArray()
 
+        # Store minimum and maximum values for cmap testing
+        # (Passed to the provider object when added to scene)
+        self.minz = np.min(elevation_data)
+        self.maxz = np.max(elevation_data)
+
+        # Convert the raster to meters if it is another data type. Not tested.
         if geotiff_unit_type == 'ft' or geotiff_unit_type == 'feet':
             elevation_data = elevation_data * 0.3048  # Convert feet to meters
         elif geotiff_unit_type == 'yd' or geotiff_unit_type == 'yards':

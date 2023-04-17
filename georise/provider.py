@@ -42,6 +42,9 @@ class SceneCoordinateProvider:
 class GRDataProvider:
     data = {}
     coord = SceneCoordinateProvider()
+    borders = True
+    cmap = 'terrain'
+    z_interval = [2 ** 16 - 1, 0]
 
     __hash = 0
 
@@ -53,6 +56,11 @@ class GRDataProvider:
     def add(self, *terrains) -> None:
         for terrain in terrains:
             self.data[self.__hash] = terrain.get_data()
+            if terrain.minz < self.z_interval[0]: self.z_interval[0] = terrain.minz
+            if terrain.maxz > self.z_interval[1]: self.z_interval[1] = terrain.maxz
+
             self.increment_hash()
+
+        assert self.z_interval[0] < self.z_interval[1]
 
 

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from typing import Tuple
 import numpy as np
 import sys
-from . import provider, util
+from . import provider, util, raster
 from .glview import GRWidget
 
 
@@ -27,6 +27,10 @@ class GRRasterScene:
 
         # self.scale_overlay = ScaleOverlay(self.w)
         # self.scale_overlay.setGeometry(10, 10, 200, 100)
+
+    def raster(self, fname, **kwargs):
+        terrain = raster.RasterTerrain(fname=fname, **kwargs)
+        self.prov.add(terrain)
         
     def update_scale_overlay(self):
         # Get the current zoom factor from the camera
@@ -96,9 +100,8 @@ class GRRasterScene:
             y = np.linspace(0, y_sz - 1, y_sz)
             x = np.linspace(0, x_sz - 1, x_sz)
 
-            cmap = plt.get_cmap('twilight_shifted_r')
-            minZ=np.min(elevs)
-            maxZ=np.max(elevs)
+            cmap = plt.get_cmap(self.prov.cmap)
+            minZ, maxZ = self.prov.z_interval
             img = cmap((elevs-minZ)/(maxZ -minZ))
 
             if key == 0:

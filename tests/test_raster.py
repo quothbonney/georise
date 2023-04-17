@@ -5,9 +5,7 @@ import rasterio
 
 #import pytest
 import pytest
-
-from src import *
-from src.raster import RasterTerrain 
+from ..georise.raster import RasterTerrain
 
 def create_temp_geotiff() -> str:
     data = np.random.randint(0, 255, (3, 3), dtype=np.uint8)
